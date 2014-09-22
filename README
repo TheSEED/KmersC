@@ -1,0 +1,165 @@
+
+What a binary file contains is a set of motifs; each motif has a vector of zero or more integers associated with it.
+
+A class KmersFileCreator is used to create the binary files:
+
+Create an instance:
+
+my $cr = new KmersFileCreator($magic, $motif_length, $padding, $sizes)
+
+$magic is an integer "magic number" that is just saved as the first four bytes of the file and may be used to identify the file type.
+$motif_length is the size of the motifs.
+$padding is the number of padding bytes added to each row (used for making the rows word-length, which doesn't necessarily have a performance boost but makes debugging hex dumps easier)
+$sizes is a list reference containing the size in bytes of the attributes for each motif. Valid sizes are 1, 2, 4, which translate to signed char, short, int.
+
+For example:
+
+Create a new file with a magic number of 0xfeedface, 8 character motifs, 3 byte padding, and two attributes, a 4-byte int and a 1-byte int. (This padding results in 16-byte rows in the table):
+
+my $cr = new KmersFileCreator(0xfeedface, 8, 3, [4,1]);
+
+Create a new file:
+
+$cr->open_file($filename)
+
+write the file header:
+
+$cr->write_file_header()
+
+Write a motif:
+
+$cr->write_entry($motif, $attrs)
+
+$motif is the motif string. 
+$attrs is a list reference containing the values of the attributes. No checking currently performed to see if values overflow the sizes assigned in the constructor.
+
+Close the file:
+
+$cr->close_file()
+
+-----
+
+Given a binary file, the KmersC class does lookups.
+
+Create the instance:
+
+$k = new KmersC();
+
+Open the data file:
+
+$k->open_data($filename)
+
+Perform a search. 
+
+my $ret = [];
+$k->find_all_hits($test_string, $offset, $ret)
+
+There is a single search routine now that returns all the hits in the given sequence. The hits are pushed into the $ret list as individual list references which have the following form
+
+	[$index, $n, <attrs>]
+
+$index is the index into the $test_string. If $offset < 0, $index is the actual index. If $offset >= 0,  the returned $index is $raw_index * 3 + $offset + 1.
+
+$n is the index of the matched kmer in the table of kmers.
+
+<attrs> are the values that are associated with the kmer hit.
+
+---
+
+For example, this code:
+
+use Data::Dumper;
+use KmersC;
+
+my $cr = new KmersFileCreator(0xfeedface, 8, 3, [4,1]);
+my $file = "/tmp/test1.dat";
+$cr->open_file($file);
+$cr->write_file_header();
+$cr->write_entry("abcdefghij",[1,2]);
+$cr->write_entry("abcdffhigj",[3,4]);
+$cr->close_file();
+system("ls -l $file");
+system("od -t x1 $file");
+
+$k = new KmersC();
+print "k=$k\n";
+$k->open_data($file);
+my $tstr= "xyzabcdefghijxafdabcdffhigjjasd";
+for my $offset (-1, 0, 1, 2)
+{
+    my $l = [];
+    $res = $k->find_all_hits($tstr, $offset, $l);
+    print Dumper($l);
+}
+
+
+generates
+
+KmersFileCreator: magic=feedface motif_len=8 pad_len=3 attr_len=< 4 1 >
+-rw-rw-r--  1 olson seed-users 180 May 28 17:05 /tmp/test1.dat
+0000000 fe ed fa ce 00 00 00 08 00 00 00 03 00 00 00 02
+0000020 00 00 00 04 00 00 00 01 00 00 00 00 00 00 00 00
+0000040 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+*
+0000220 00 00 00 10 61 62 63 64 65 66 67 68 00 00 00 01
+0000240 02 00 00 00 61 62 63 64 66 66 68 69 00 00 00 03
+0000260 04 00 00 00
+0000264
+k=KmersC=SCALAR(0x814f0b8)
+mapped table, motif_len=8 pad_len=3 num_attrs=2 data_entry_len=16 len=2
+$VAR1 = [
+          [
+            3,
+            0,
+            1,
+            2
+          ],
+          [
+            17,
+            1,
+            3,
+            4
+          ]
+$VAR1 = [
+          [
+            10,
+            0,
+            1,
+            2
+          ],
+          [
+            52,
+            1,
+            3,
+            4
+          ]
+        ];
+$VAR1 = [
+          [
+            11,
+            0,
+            1,
+            2
+          ],
+          [
+            53,
+            1,
+            3,
+            4
+          ]
+        ];
+$VAR1 = [
+          [
+            12,
+            0,
+            1,
+            2
+          ],
+          [
+            54,
+            1,
+            3,
+            4
+          ]
+        ];
+

@@ -1,0 +1,8 @@
+Changes
+KmersC.xs
+Makefile.PL
+MANIFEST
+ppport.h
+README
+t/KmersC.t
+lib/KmersC.pm
